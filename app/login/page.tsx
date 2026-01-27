@@ -1,8 +1,10 @@
 // app/login/page.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { signIn, signInWithGoogle, resetPassword } from '@/lib/firebase/auth';
+import { useAuth } from '@/lib/contexts/AuthContext';
 
 const colors = {
   cream: '#F8F3EA',
@@ -14,19 +16,83 @@ const colors = {
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetSuccess, setResetSuccess] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const router = useRouter();
+  const { user } = useAuth();
 
-  const handleLogin = (e: React.FormEvent) => {
+  // Redirect if already logged in
+  useEffect(() => {
+    if (user) {
+      router.push('/profile');
+    }
+  }, [user, router]);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement Firebase authentication
-    console.log('Login:', { email, password });
-    router.push('/profile');
+    setError(null);
+    setLoading(true);
+
+    const { user, error: signInError } = await signIn(email, password);
+
+    if (signInError) {
+      setError(signInError);
+      setLoading(false);
+      return;
+    }
+
+    if (user) {
+      router.push('/profile');
+    }
   };
 
-  const handleGoogleLogin = () => {
-    // TODO: Implement Google OAuth
-    console.log('Google login');
-    router.push('/profile');
+  const handleGoogleLogin = async () => {
+    setError(null);
+    setLoading(true);
+
+    const { user, error: googleError } = await signInWithGoogle();
+
+    if (googleError) {
+      setError(googleError);
+      setLoading(false);
+      return;
+    }
+
+    if (user) {
+      router.push('/profile');
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    if (!resetEmail.trim()) {
+      setError('Please enter your email address');
+      return;
+    }
+
+    setResetLoading(true);
+    setError(null);
+
+    const { success, error: resetError } = await resetPassword(resetEmail);
+
+    if (resetError) {
+      setError(resetError);
+      setResetLoading(false);
+      return;
+    }
+
+    if (success) {
+      setResetSuccess(true);
+      setResetLoading(false);
+      setTimeout(() => {
+        setShowResetModal(false);
+        setResetSuccess(false);
+        setResetEmail('');
+      }, 3000);
+    }
   };
 
   return (
@@ -79,6 +145,13 @@ export default function LoginPage() {
             Sign in to access your wardrobe
           </p>
 
+          {/* Error Message */}
+          {error && (
+            <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200">
+              <p className="text-sm font-medium text-red-700">{error}</p>
+            </div>
+          )}
+
           <form onSubmit={handleLogin} className="space-y-6">
             {/* Email */}
             <div>
@@ -93,6 +166,7 @@ export default function LoginPage() {
                 className="w-full px-4 py-3 rounded-lg border-2 focus:outline-none"
                 style={{ borderColor: colors.peach, backgroundColor: colors.cream }}
                 required
+                disabled={loading}
               />
             </div>
 
@@ -109,6 +183,7 @@ export default function LoginPage() {
                 className="w-full px-4 py-3 rounded-lg border-2 focus:outline-none"
                 style={{ borderColor: colors.peach, backgroundColor: colors.cream }}
                 required
+                disabled={loading}
               />
             </div>
 
@@ -116,8 +191,13 @@ export default function LoginPage() {
             <div className="text-right">
               <button 
                 type="button"
+                onClick={() => {
+                  setShowResetModal(true);
+                  setResetEmail(email);
+                }}
                 className="text-sm font-medium hover:underline"
                 style={{ color: colors.navy }}
+                disabled={loading}
               >
                 Forgot password?
               </button>
@@ -126,10 +206,18 @@ export default function LoginPage() {
             {/* Sign In Button */}
             <button
               type="submit"
-              className="w-full py-3 px-4 rounded-lg font-bold text-white transition-opacity hover:opacity-90"
+              disabled={loading}
+              className="w-full py-3 px-4 rounded-lg font-bold text-white transition-opacity hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
               style={{ backgroundColor: colors.navy }}
             >
-              Sign In
+              {loading ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Signing in...
+                </>
+              ) : (
+                'Sign In'
+              )}
             </button>
           </form>
 
@@ -143,7 +231,8 @@ export default function LoginPage() {
           {/* Google Sign In */}
           <button
             onClick={handleGoogleLogin}
-            className="w-full py-3 px-4 rounded-lg font-semibold border-2 transition-all hover:shadow-sm flex items-center justify-center gap-3"
+            disabled={loading}
+            className="w-full py-3 px-4 rounded-lg font-semibold border-2 transition-all hover:shadow-sm flex items-center justify-center gap-3 disabled:opacity-50"
             style={{ borderColor: colors.peach, backgroundColor: 'white', color: colors.navy }}
           >
             <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -152,7 +241,7 @@ export default function LoginPage() {
               <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
-            Continue with Google
+            {loading ? 'Connecting...' : 'Continue with Google'}
           </button>
 
           {/* Sign Up Link */}
@@ -162,12 +251,106 @@ export default function LoginPage() {
               onClick={() => router.push('/signup')}
               className="font-semibold hover:underline"
               style={{ color: colors.navy }}
+              disabled={loading}
             >
               Sign up
             </button>
           </p>
         </div>
       </div>
+
+      {/* Password Reset Modal */}
+      {showResetModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
+            <div className="p-8">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold" style={{ color: colors.navy }}>
+                  Reset Password
+                </h2>
+                <button 
+                  onClick={() => {
+                    setShowResetModal(false);
+                    setResetSuccess(false);
+                    setError(null);
+                  }}
+                  disabled={resetLoading}
+                  className="w-8 h-8 rounded-full flex items-center justify-center transition-colors hover:opacity-70"
+                  style={{ backgroundColor: colors.cream }}
+                >
+                  <svg className="w-5 h-5" style={{ color: colors.navy }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {resetSuccess ? (
+                <div className="p-4 rounded-lg mb-4" style={{ backgroundColor: colors.peach }}>
+                  <p className="text-sm font-medium" style={{ color: colors.navy }}>
+                    ✅ Password reset email sent! Check your inbox.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <p className="text-sm mb-6" style={{ color: colors.navy, opacity: 0.7 }}>
+                    Enter your email address and we'll send you a link to reset your password.
+                  </p>
+
+                  {error && (
+                    <div className="mb-4 p-4 rounded-lg bg-red-50 border border-red-200">
+                      <p className="text-sm font-medium text-red-700">{error}</p>
+                    </div>
+                  )}
+
+                  <div className="mb-6">
+                    <label className="block text-sm font-semibold mb-2" style={{ color: colors.navy }}>
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      placeholder="you@example.com"
+                      className="w-full px-4 py-3 rounded-lg border-2 focus:outline-none"
+                      style={{ borderColor: colors.peach, backgroundColor: colors.cream }}
+                      disabled={resetLoading}
+                    />
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button 
+                      onClick={() => {
+                        setShowResetModal(false);
+                        setError(null);
+                      }}
+                      disabled={resetLoading}
+                      className="flex-1 px-6 py-3 rounded-lg font-semibold transition-colors disabled:opacity-50"
+                      style={{ backgroundColor: colors.cream, color: colors.navy }}
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      onClick={handlePasswordReset}
+                      disabled={resetLoading}
+                      className="flex-1 px-6 py-3 rounded-lg font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
+                      style={{ backgroundColor: colors.navy }}
+                    >
+                      {resetLoading ? (
+                        <>
+                          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Sending...
+                        </>
+                      ) : (
+                        'Send Reset Link'
+                      )}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
