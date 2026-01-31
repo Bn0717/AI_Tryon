@@ -18,12 +18,16 @@ import {
   toggleOutfitFavorite,
   getUserCategories,
   saveCustomCategory,
-  deleteCustomCategory
+  deleteCustomCategory,
+  getAvatar
 } from '@/lib/firebase/firestore';
 import { uploadClothingPhoto } from '@/lib/firebase/storage';
 import UploadClothingModal from '@/components/items/UploadClothingModal';
 import CreateOutfitModal from '@/components/items/CreateOutfitModal';
 import type { ClothingItem, OutfitCombination, CustomCategory } from '@/lib/types/clothing';
+import FitRecommendationModal from '@/components/items/FitRecommendationModal';
+import ItemDetailsModal from '@/components/items/ItemDetailsModal';
+import type { ParametricAvatar } from '@/lib/types/avatar';
 
 const colors = {
   cream: '#F8F3EA',
@@ -53,6 +57,11 @@ export default function ItemsPage() {
   const [error, setError] = useState<string | null>(null);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryIcon, setNewCategoryIcon] = useState('📦');
+  const [showItemDetails, setShowItemDetails] = useState(false);
+  const [showFitModal, setShowFitModal] = useState(false);
+  const [selectedItemForDetails, setSelectedItemForDetails] = useState<ClothingItem | null>(null);
+  const [userProfile, setUserProfile] = useState<ParametricAvatar | null>(null);
+  
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -65,6 +74,22 @@ export default function ItemsPage() {
       loadData();
     }
   }, [user, activeTab]);
+
+  useEffect(() => {
+    if (user) {
+      loadUserProfile();
+    }
+  }, [user]);
+
+  const loadUserProfile = async () => {
+    if (!user) return;
+    try {
+      const profile = await getAvatar(user.uid);
+      setUserProfile(profile);
+    } catch (error) {
+      console.error('Error loading profile:', error);
+    }
+  };
 
   const loadData = async () => {
     if (!user) return;
@@ -160,6 +185,14 @@ export default function ItemsPage() {
 
   const handleItemClick = async (itemId: string) => {
     setSelectedItem(itemId);
+    
+    // ✨ NEW: Find the item and show details modal
+    const item = items.find(i => i.id === itemId);
+    if (item) {
+      setSelectedItemForDetails(item);
+      setShowItemDetails(true);
+    }
+    
     await updateLastViewed(itemId);
   };
 
@@ -831,6 +864,7 @@ export default function ItemsPage() {
         isOpen={showUpload}
         onClose={() => setShowUpload(false)}
         onSubmit={handleUpload}
+        availableCategories={allCategories}
       />
 
       <CreateOutfitModal
@@ -839,6 +873,27 @@ export default function ItemsPage() {
         availableItems={items}
         onSubmit={handleCreateOutfit}
       />
+
+      {selectedItemForDetails && (
+        <>
+          <ItemDetailsModal
+            isOpen={showItemDetails}
+            onClose={() => setShowItemDetails(false)}
+            item={selectedItemForDetails}
+            onCheckFit={() => {
+              setShowItemDetails(false);
+              setShowFitModal(true);
+            }}
+          />
+
+          <FitRecommendationModal
+            isOpen={showFitModal}
+            onClose={() => setShowFitModal(false)}
+            item={selectedItemForDetails}
+            userProfile={userProfile}
+          />
+        </>
+      )}
 
     </div>
   );

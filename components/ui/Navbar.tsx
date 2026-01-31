@@ -1,9 +1,10 @@
-// components/ui/Navbar.tsx
+// components/ui/Navbar.tsx - VERSION WITH SMOOTH HOVER UNDERLINE
 'use client';
 
+import { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/contexts/AuthContext';
-import { useState } from 'react';
 
 const colors = {
   cream: '#F8F3EA',
@@ -15,128 +16,84 @@ const colors = {
 export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout } = useAuth();
-  const [loggingOut, setLoggingOut] = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false);
+  const { user, logout, loading } = useAuth();
+  const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const isActive = (path: string) => pathname === path;
-
-  const handleLogout = async () => {
-    setLoggingOut(true);
-    await logout();
-    setLoggingOut(false);
-    router.push('/login');
-  };
-
-  // Don't show navbar on login/signup pages
+  // Hide navbar on login/signup pages
   if (pathname === '/login' || pathname === '/signup') {
     return null;
   }
 
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleLogout = async () => {
+    await logout();
+    setShowDropdown(false);
+    router.push('/login');
+  };
+
+  const isActive = (path: string) => pathname === path;
+
   return (
-    <nav className="border-b" style={{ backgroundColor: 'white', borderColor: colors.peach }}>
+    <nav className="border-b sticky top-0 z-40" style={{ backgroundColor: colors.cream, borderColor: colors.peach }}>
       <div className="max-w-7xl mx-auto px-6 py-4">
         <div className="flex items-center justify-between">
           
           {/* Logo */}
-          <button 
-            onClick={() => router.push('/')}
-            className="text-2xl font-black transition-opacity hover:opacity-80"
-            style={{ color: colors.navy }}
-          >
+          <Link href="/" className="text-2xl font-bold transition-opacity hover:opacity-80" style={{ color: colors.navy }}>
             FitCheck
-          </button>
+          </Link>
 
-          {/* Navigation Links */}
+          {/* Navigation Links - SMOOTH HOVER VERSION */}
           <div className="flex items-center gap-1">
-            <button
-              onClick={() => router.push('/')}
-              className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
-                isActive('/') ? 'font-bold' : ''
-              }`}
-              style={{
-                backgroundColor: isActive('/') ? colors.peach : 'transparent',
-                color: colors.navy,
-              }}
-            >
+            <NavLink href="/" isActive={isActive('/')}>
               Home
-            </button>
+            </NavLink>
             
-            <button
-              onClick={() => router.push('/profile')}
-              className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
-                isActive('/profile') ? 'font-bold' : ''
-              }`}
-              style={{
-                backgroundColor: isActive('/profile') ? colors.peach : 'transparent',
-                color: colors.navy,
-              }}
-            >
+            <NavLink href="/profile" isActive={isActive('/profile')}>
               Profile
-            </button>
-
-            <button
-              onClick={() => router.push('/items')}
-              className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
-                isActive('/items') ? 'font-bold' : ''
-              }`}
-              style={{
-                backgroundColor: isActive('/items') ? colors.peach : 'transparent',
-                color: colors.navy,
-              }}
-            >
+            </NavLink>
+            
+            <NavLink href="/items" isActive={isActive('/items')}>
               Wardrobe
-            </button>
-
-            <button
-              onClick={() => router.push('/try-on')}
-              className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
-                isActive('/try-on') ? 'font-bold' : ''
-              }`}
-              style={{
-                backgroundColor: isActive('/try-on') ? colors.peach : 'transparent',
-                color: colors.navy,
-              }}
-            >
+            </NavLink>
+            
+            <NavLink href="/dashboard" isActive={isActive('/dashboard')}>
+              Dashboard
+            </NavLink>
+            
+            <NavLink href="/try-on" isActive={isActive('/try-on')}>
               Try-On
-            </button>
+            </NavLink>
           </div>
 
           {/* User Menu */}
-          {user ? (
-            <div className="relative">
+          {user && (
+            <div className="relative" ref={dropdownRef}>
               <button
-                onClick={() => setShowUserMenu(!showUserMenu)}
-                className="flex items-center gap-3 px-4 py-2 rounded-lg transition-all hover:opacity-80"
-                style={{ backgroundColor: colors.cream }}
+                onClick={() => setShowDropdown(!showDropdown)}
+                className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white transition-transform hover:scale-105"
+                style={{ backgroundColor: colors.navy }}
               >
-                <div 
-                  className="w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm"
-                  style={{ backgroundColor: colors.pink, color: colors.navy }}
-                >
-                  {user.email?.charAt(0).toUpperCase()}
-                </div>
-                <span className="text-sm font-medium hidden md:block" style={{ color: colors.navy }}>
-                  {user.email}
-                </span>
-                <svg 
-                  className={`w-4 h-4 transition-transform ${showUserMenu ? 'rotate-180' : ''}`}
-                  style={{ color: colors.navy }}
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
+                {user.email?.[0].toUpperCase()}
               </button>
 
-              {/* Dropdown Menu */}
-              {showUserMenu && (
+              {showDropdown && (
                 <div 
-                  className="absolute right-0 mt-2 w-56 rounded-xl shadow-lg border-2 overflow-hidden z-50"
+                  className="absolute right-0 mt-2 w-64 rounded-xl shadow-lg border-2 overflow-hidden"
                   style={{ backgroundColor: 'white', borderColor: colors.peach }}
                 >
-                  <div className="p-3 border-b" style={{ borderColor: colors.peach }}>
+                  <div className="p-4" style={{ backgroundColor: colors.cream }}>
                     <p className="text-xs font-semibold" style={{ color: colors.navy, opacity: 0.6 }}>
                       Signed in as
                     </p>
@@ -144,52 +101,64 @@ export default function Navbar() {
                       {user.email}
                     </p>
                   </div>
-                  
+
                   <div className="p-2">
-                    <button
-                      onClick={() => {
-                        setShowUserMenu(false);
-                        router.push('/profile');
-                      }}
-                      className="w-full px-3 py-2 rounded-lg text-left text-sm font-medium transition-all hover:opacity-80"
-                      style={{ backgroundColor: colors.cream, color: colors.navy }}
+                    <Link
+                      href="/profile"
+                      onClick={() => setShowDropdown(false)}
+                      className="block px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:opacity-70"
+                      style={{ color: colors.navy }}
                     >
                       ⚙️ Settings
-                    </button>
-                  </div>
-
-                  <div className="p-2 border-t" style={{ borderColor: colors.peach }}>
+                    </Link>
                     <button
                       onClick={handleLogout}
-                      disabled={loggingOut}
-                      className="w-full px-3 py-2 rounded-lg text-left text-sm font-semibold transition-all hover:opacity-80 disabled:opacity-50"
-                      style={{ backgroundColor: colors.pink, color: colors.navy }}
+                      disabled={loading}
+                      className="w-full text-left px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:opacity-70 disabled:opacity-50"
+                      style={{ color: colors.navy }}
                     >
-                      {loggingOut ? '🔄 Logging out...' : '🚪 Logout'}
+                      {loading ? '🔄 Logging out...' : '👋 Logout'}
                     </button>
                   </div>
                 </div>
               )}
             </div>
-          ) : (
-            <button
-              onClick={() => router.push('/login')}
-              className="px-6 py-2 rounded-lg font-semibold text-sm transition-opacity hover:opacity-90"
-              style={{ backgroundColor: colors.navy, color: 'white' }}
-            >
-              Login
-            </button>
           )}
+
         </div>
       </div>
+    </nav>
+  );
+}
 
-      {/* Close dropdown when clicking outside */}
-      {showUserMenu && (
+// Custom NavLink component with smooth hover effect
+function NavLink({ href, isActive, children }: { href: string; isActive: boolean; children: React.ReactNode }) {
+  return (
+    <Link 
+      href={href}
+      className="relative px-4 py-2 font-semibold transition-all group"
+      style={{ color: colors.navy }}
+    >
+      {/* Text */}
+      <span className={isActive ? 'opacity-100' : 'opacity-70 group-hover:opacity-100'}>
+        {children}
+      </span>
+      
+      {/* Active indicator - doesn't cause layout shift */}
+      {isActive && (
         <div 
-          className="fixed inset-0 z-40" 
-          onClick={() => setShowUserMenu(false)}
+          className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full"
+          style={{ backgroundColor: colors.navy }}
         />
       )}
-    </nav>
+      
+      {/* Hover indicator - only shows when not active */}
+      {!isActive && (
+        <div 
+          className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+          style={{ backgroundColor: colors.pink }}
+        />
+      )}
+    </Link>
   );
 }

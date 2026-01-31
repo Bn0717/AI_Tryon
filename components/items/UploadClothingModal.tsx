@@ -21,6 +21,7 @@ interface Props {
     sizeChart: SizeChart[];
     imageFile: File | null;
   }) => Promise<void>;
+  availableCategories: string[];
 }
 
 const DEFAULT_SIZES: SizeChart[] = [

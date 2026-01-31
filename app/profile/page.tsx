@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/contexts/AuthContext';
 import { useProfile } from '@/lib/hooks/useProfile';
 import AutoDetectMeasurements from '@/components/profile/AutoDetectMeasurements';
 import User3DModel from '@/components/profile/User3DModel';
+import AvaturnCreator from '@/components/profile/AvaturnCreator';
 
 const colors = {
   cream: '#F8F3EA',
@@ -31,6 +32,8 @@ export default function ProfilePage() {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [showAvaturn, setShowAvaturn] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -47,9 +50,8 @@ export default function ProfilePage() {
         waist: profile.waist,
         shoulder: profile.shoulder,
       });
-      if (profile.photoUrl) {
-        setPhotoPreview(profile.photoUrl);
-      }
+      if (profile.photoUrl) setPhotoPreview(profile.photoUrl);
+      if (profile.avatarUrl) setAvatarUrl(profile.avatarUrl); // ✨ Add this!
     }
   }, [profile]);
 
@@ -62,6 +64,16 @@ export default function ProfilePage() {
         setPhotoPreview(reader.result as string);
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const handleAvatarExported = async (url: string) => {
+    setAvatarUrl(url); // This updates the screen instantly!
+    setShowAvaturn(false); // Closes the popup
+
+    // This saves it to Firebase so it's there when you refresh later
+    if (user) {
+      await saveProfile({ ...measurements, avatarUrl: url });
     }
   };
 
@@ -104,243 +116,88 @@ export default function ProfilePage() {
       </div>
     );
   }
-
+  
   return (
-    <div className="min-h-screen flex" style={{ backgroundColor: colors.cream }}>
+    <div className="min-h-screen flex bg-[#F8F3EA]">
+    
+    {/* LEFT SIDEBAR (Narrower & Cleaner) */}
+    <div className="w-80 border-r border-[#FFDBD1] bg-white overflow-y-auto p-6">
+      <h1 className="text-xl font-black text-[#0B1957] mb-6">PROFILE SETUP</h1>
       
-      {/* LEFT SIDEBAR */}
-      <div className="w-96 border-r overflow-y-auto" style={{ backgroundColor: 'white', borderColor: colors.peach }}>
-        <div className="p-6">
+      {/* Photo Preview Card */}
+      <div className="rounded-2xl overflow-hidden border-2 border-[#FFDBD1] bg-[#F8F3EA] mb-6">
+         {photoPreview ? (
+           <img src={photoPreview} className="w-full h-48 object-cover" />
+         ) : (
+           <div className="h-48 flex items-center justify-center text-gray-400">No Photo</div>
+         )}
+         <label className="block p-3 text-center text-xs font-bold text-[#0B1957] cursor-pointer hover:bg-white transition-colors">
+            CHANGE PHOTO
+            <input type="file" className="hidden" onChange={handlePhotoUpload} />
+         </label>
+      </div>
+
+      <AutoDetectMeasurements 
+        photoUrl={photoPreview || ''} 
+        onMeasurementsDetected={setMeasurements} 
+      />
+    </div>
+
+    {/* RIGHT CONTENT (Spacious & Clean) */}
+    <div className="flex-1 p-10 overflow-y-auto">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex justify-between items-center mb-10">
+          <h2 className="text-3xl font-bold text-[#0B1957]">Your Digital Twin</h2>
+          <button 
+            onClick={() => setShowAvaturn(true)}
+            className="px-8 py-4 bg-[#0B1957] text-white rounded-2xl font-bold shadow-xl hover:scale-105 transition-all flex items-center gap-3"
+          >
+            ✨ Create Realistic Avatar
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-10">
           
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold mb-2" style={{ color: colors.navy }}>
-              PROFILE SETUP
-            </h1>
-            <p className="text-sm" style={{ color: colors.navy, opacity: 0.6 }}>
-              Upload your photo and body measurements
-            </p>
-            {user.email && (
-              <p className="text-xs mt-2 px-3 py-1 rounded-full inline-block" style={{ backgroundColor: colors.pink, color: colors.navy }}>
-                {user.email}
-              </p>
-            )}
+          {/* 3D VIEWER (Takes 2 columns) */}
+          <div className="xl:col-span-2">
+            <User3DModel avatarUrl={avatarUrl} measurements={measurements} />
           </div>
 
-          {/* Photo Upload */}
-          <div className="mb-6">
-            <label className="block text-sm font-semibold mb-3" style={{ color: colors.navy }}>
-              Upload Full Body Photo
-            </label>
-            <div 
-              className="border-2 border-dashed rounded-xl p-8 transition-all hover:border-opacity-80"
-              style={{ borderColor: colors.pink, backgroundColor: colors.cream }}
-            >
-              {photoPreview ? (
-                <div className="relative group">
-                  <img 
-                    src={photoPreview} 
-                    alt="Preview" 
-                    className="w-full h-64 object-cover rounded-lg mb-3"
+          {/* MEASUREMENT INPUTS (Clean Grid) */}
+          <div className="bg-white rounded-3xl border-2 border-[#FFDBD1] p-8 h-fit shadow-sm">
+            <h3 className="text-lg font-bold text-[#0B1957] mb-6 border-b border-[#F8F3EA] pb-4">Body Metrics (cm)</h3>
+            <div className="grid grid-cols-1 gap-6">
+              {[
+                { label: 'Height', key: 'height' },
+                { label: 'Chest', key: 'chest' },
+                { label: 'Waist', key: 'waist' },
+                { label: 'Shoulder', key: 'shoulder' }
+              ].map((m) => (
+                <div key={m.key}>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{m.label}</label>
+                  <input
+                    type="number"
+                    value={measurements[m.key as keyof typeof measurements]}
+                    onChange={(e) => handleMeasurementChange(m.key, Number(e.target.value))}
+                    className="w-full mt-2 px-5 py-4 rounded-xl border border-[#FFDBD1] bg-[#F8F3EA] text-[#0B1957] font-bold text-lg focus:ring-4 focus:ring-[#FFDBD1] transition-all outline-none"
                   />
-                  <label className="cursor-pointer">
-                    <span className="text-sm hover:underline" style={{ color: colors.navy }}>
-                      Change photo
-                    </span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handlePhotoUpload}
-                      className="hidden"
-                    />
-                  </label>
                 </div>
-              ) : (
-                <div className="text-center">
-                  <div 
-                    className="w-16 h-16 mx-auto mb-3 rounded-full flex items-center justify-center"
-                    style={{ backgroundColor: colors.peach }}
-                  >
-                    <svg className="w-8 h-8" style={{ color: colors.navy }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                  </div>
-                  <p className="text-sm mb-4" style={{ color: colors.navy, opacity: 0.7 }}>
-                    Upload your full-body photo
-                  </p>
-                  <label className="cursor-pointer">
-                    <span 
-                      className="inline-block px-5 py-2 rounded-lg font-medium text-sm text-white transition-opacity hover:opacity-90"
-                      style={{ backgroundColor: colors.navy }}
-                    >
-                      Choose File
-                    </span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handlePhotoUpload}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-              )}
+              ))}
             </div>
-          </div>
-
-          {/* AUTO-DETECT COMPONENT */}
-          {photoPreview && (
-            <div className="mb-6">
-              <AutoDetectMeasurements
-                photoUrl={photoPreview}
-                userHeight={measurements.height}
-                onMeasurementsDetected={(detected) => {
-                  setMeasurements(detected);
-                }}
-              />
-            </div>
-          )}
-
-          <div className="my-6" style={{ borderTop: `1px solid ${colors.peach}` }}></div>
-
-          {/* Quick Actions */}
-          <div className="space-y-3 mb-6">
+            
             <button 
-              className="w-full px-4 py-3 rounded-lg font-medium text-sm transition-all hover:opacity-90 text-left flex items-center justify-between"
-              style={{ backgroundColor: colors.peach, color: colors.navy }}
+              onClick={handleSave}
+              className="w-full mt-8 py-4 bg-[#FA9EBC] text-[#0B1957] rounded-xl font-black uppercase tracking-widest hover:opacity-90 transition-all"
             >
-              <span>📏 Measurement guide</span>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
+              Save Profile
             </button>
           </div>
 
-          {/* Info Box */}
-          <div 
-            className="p-4 rounded-lg"
-            style={{ backgroundColor: colors.pink, color: colors.navy }}
-          >
-            <p className="text-xs font-medium">
-              💡 <strong>Pro tip:</strong> Stand straight with arms slightly away from your body for accurate measurements.
-            </p>
-          </div>
-
-          {/* Save Button */}
-          <button 
-            onClick={handleSave}
-            disabled={saving}
-            className="w-full mt-6 px-6 py-4 rounded-xl font-bold transition-all hover:opacity-90 disabled:opacity-50"
-            style={{ backgroundColor: colors.navy, color: 'white' }}
-          >
-            {saving ? 'Saving...' : 'Save Profile'}
-          </button>
-
-          {/* Success/Error Messages */}
-          {successMessage && (
-            <div className="mt-4 p-3 rounded-lg" style={{ backgroundColor: colors.peach }}>
-              <p className="text-sm font-medium" style={{ color: colors.navy }}>{successMessage}</p>
-            </div>
-          )}
-          {error && (
-            <div className="mt-4 p-3 rounded-lg bg-red-100">
-              <p className="text-sm font-medium text-red-700">Error: {error}</p>
-            </div>
-          )}
-
         </div>
       </div>
-
-      {/* RIGHT SIDE (New 3D Layout) */}
-      <div className="flex-1 overflow-y-auto" style={{ backgroundColor: colors.cream }}>
-        <div className="p-8">
-          
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold" style={{ color: colors.navy }}>Your 3D Fit Profile</h2>
-            <div className="text-sm px-3 py-1 bg-white rounded-full font-medium border" style={{ color: colors.navy, borderColor: colors.peach }}>
-               Status: {profile ? '✅ Active' : '⚠️ Unsaved'}
-            </div>
-          </div>
-
-          {/* Grid Layout: 3D Model (Left) - Inputs (Right) */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-            
-            {/* COLUMN 1: 3D VIEWER */}
-            <div className="order-1">
-              <User3DModel 
-                photoUrl={photoPreview} 
-                measurements={measurements} 
-              />
-              <p className="text-center text-xs mt-3 opacity-60" style={{ color: colors.navy }}>
-                 Drag to rotate • Scroll to zoom
-              </p>
-            </div>
-
-            {/* COLUMN 2: INPUTS */}
-            <div className="order-2">
-              <div className="bg-white rounded-2xl shadow-sm border-2 p-6" style={{ borderColor: colors.peach }}>
-                <h3 className="font-bold mb-4" style={{ color: colors.navy }}>Body Measurements</h3>
-                
-                <div className="space-y-4">
-                  {/* Height */}
-                  <div>
-                    <label className="text-xs font-bold uppercase" style={{ color: colors.navy }}>Height</label>
-                    <input
-                      type="number"
-                      value={measurements.height}
-                      onChange={(e) => handleMeasurementChange('height', Number(e.target.value))}
-                      className="w-full mt-1 px-4 py-3 rounded-lg border font-bold focus:outline-none focus:ring-2"
-                      style={{ borderColor: colors.peach, backgroundColor: colors.cream, color: colors.navy }}
-                    />
-                  </div>
-
-                  {/* Chest */}
-                  <div>
-                    <label className="text-xs font-bold uppercase" style={{ color: colors.navy }}>Chest</label>
-                    <input
-                      type="number"
-                      value={measurements.chest}
-                      onChange={(e) => handleMeasurementChange('chest', Number(e.target.value))}
-                      className="w-full mt-1 px-4 py-3 rounded-lg border font-bold focus:outline-none focus:ring-2"
-                      style={{ borderColor: colors.peach, backgroundColor: colors.cream, color: colors.navy }}
-                    />
-                  </div>
-
-                  {/* Waist */}
-                  <div>
-                    <label className="text-xs font-bold uppercase" style={{ color: colors.navy }}>Waist</label>
-                    <input
-                      type="number"
-                      value={measurements.waist}
-                      onChange={(e) => handleMeasurementChange('waist', Number(e.target.value))}
-                      className="w-full mt-1 px-4 py-3 rounded-lg border font-bold focus:outline-none focus:ring-2"
-                      style={{ borderColor: colors.peach, backgroundColor: colors.cream, color: colors.navy }}
-                    />
-                  </div>
-
-                  {/* Shoulder */}
-                  <div>
-                    <label className="text-xs font-bold uppercase" style={{ color: colors.navy }}>Shoulder</label>
-                    <input
-                      type="number"
-                      value={measurements.shoulder}
-                      onChange={(e) => handleMeasurementChange('shoulder', Number(e.target.value))}
-                      className="w-full mt-1 px-4 py-3 rounded-lg border font-bold focus:outline-none focus:ring-2"
-                      style={{ borderColor: colors.peach, backgroundColor: colors.cream, color: colors.navy }}
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-6 p-4 rounded-lg" style={{ backgroundColor: colors.peach }}>
-                   <p className="text-xs" style={{ color: colors.navy }}>
-                      <strong>Try it:</strong> Change the "Waist" number drastically (e.g. 80 to 120) and watch the model change!
-                   </p>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      </div>
-
     </div>
+
+    {showAvaturn && <AvaturnCreator onAvatarExported={handleAvatarExported} onClose={() => setShowAvaturn(false)} />}
+  </div>
   );
 }
