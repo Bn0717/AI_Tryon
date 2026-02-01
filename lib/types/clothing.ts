@@ -22,8 +22,11 @@ export interface ClothingItem {
   category: string;      // User can now add custom categories
   imageUrl?: string;
   sizeChart: SizeChart[];
-  isFavorite: boolean;   // NEW: Track favorite status
-  lastViewed?: string;   // NEW: ISO timestamp of last view
+  sizeChartPhotoUrl?: string;  //  Photo of size chart label
+  userWearingSize?: string;    //  Which size the user actually wears
+  price?: number;              //  Optional price
+  isFavorite: boolean;
+  lastViewed?: string;   // ISO timestamp of last view
   createdAt?: any;       // Firestore Timestamp
 }
 
@@ -49,4 +52,12 @@ export interface CustomCategory {
   name: string;          // e.g., "Winter Wear", "Gym Clothes"
   icon: string;          // Emoji or icon identifier
   createdAt?: any;
+}
+
+/**
+ * Random outfit configuration
+ */
+export interface RandomOutfitConfig {
+  categories: string[];  // Which categories to include
+  count: number;         // How many items to pick
 }

@@ -37,13 +37,14 @@ export const uploadUserPhoto = async (
  */
 export const uploadClothingPhoto = async (
   userId: string,
-  itemId: string,
-  file: File
+  itemId: string, // Use itemId instead of just file name for uniqueness
+  file: File,
+  folder: string = 'clothing-items' // Default folder
 ): Promise<{ url: string | null; error: string | null }> => {
   try {
     const timestamp = Date.now();
     const filename = `${itemId}_${timestamp}_${file.name}`;
-    const storagePath = `users/${userId}/clothing/${filename}`;
+    const storagePath = `users/${userId}/${folder}/${filename}`;
     
     const storageRef = ref(storage, storagePath);
     const snapshot = await uploadBytes(storageRef, file);

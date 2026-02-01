@@ -24,10 +24,11 @@ import {
 import { uploadClothingPhoto } from '@/lib/firebase/storage';
 import UploadClothingModal from '@/components/items/UploadClothingModal';
 import CreateOutfitModal from '@/components/items/CreateOutfitModal';
-import type { ClothingItem, OutfitCombination, CustomCategory } from '@/lib/types/clothing';
+import type { ClothingItem, OutfitCombination, CustomCategory, SizeChart } from '@/lib/types/clothing';
 import FitRecommendationModal from '@/components/items/FitRecommendationModal';
 import ItemDetailsModal from '@/components/items/ItemDetailsModal';
 import type { ParametricAvatar } from '@/lib/types/avatar';
+import RandomOutfitGenerator from '@/components/items/RandomOutfitGenerator';
 
 const colors = {
   cream: '#F8F3EA',
@@ -123,49 +124,58 @@ export default function ItemsPage() {
   };
 
   const handleUpload = async (data: {
+    photo: File;               // Matches Modal
     brand: string;
     name: string;
     category: string;
-    sizeChart: any[];
-    imageFile: File | null;
+    sizeChart: SizeChart[];    // Matches Modal
+    sizeChartPhoto?: File;     
+    userWearingSize?: string;  
+    price?: number;            
   }) => {
     if (!user) return;
 
     try {
       let imageUrl = '';
-      if (data.imageFile) {
-        const itemId = `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        const { url, error: uploadError } = await uploadClothingPhoto(user.uid, itemId, data.imageFile);
-        
-        if (uploadError || !url) {
-          throw new Error(uploadError || 'Failed to upload image');
-        }
-        imageUrl = url;
+      let sizeChartPhotoUrl = '';
+      const itemId = `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-        const newItem: Omit<ClothingItem, 'createdAt'> = {
-          id: itemId,
-          userId: user.uid,
-          brand: data.brand,
-          name: data.name,
-          category: data.category,
-          imageUrl,
-          sizeChart: data.sizeChart,
-          isFavorite: false,
-        };
+      // 1. Upload main item photo
+      const { url, error: uploadError } = await uploadClothingPhoto(user.uid, itemId, data.photo);
+      if (uploadError || !url) throw new Error(uploadError || 'Failed to upload image');
+      imageUrl = url;
 
-        const { success, error: saveError } = await saveClothingItem(newItem);
-        
-        if (!success || saveError) {
-          throw new Error(saveError || 'Failed to save item');
-        }
-
-        await loadData();
+      // 2. Upload size chart photo if provided
+      if (data.sizeChartPhoto) {
+        const { url: scUrl, error: scError } = await uploadClothingPhoto(user.uid, `${itemId}_chart`, data.sizeChartPhoto);
+        if (!scError && scUrl) sizeChartPhotoUrl = scUrl;
       }
+
+      // 3. Create the item object
+      const newItem: ClothingItem = {
+        id: itemId,
+        userId: user.uid,
+        brand: data.brand,
+        name: data.name,
+        category: data.category,
+        imageUrl,
+        sizeChart: data.sizeChart,
+        isFavorite: false,
+        sizeChartPhotoUrl: sizeChartPhotoUrl || undefined,
+        userWearingSize: data.userWearingSize,
+        price: data.price,
+      };
+
+      const { success, error: saveError } = await saveClothingItem(newItem);
+      if (!success || saveError) throw new Error(saveError || 'Failed to save item');
+
+      await loadData();
     } catch (err: any) {
-      throw new Error(err.message || 'Upload failed');
+      console.error(err);
+      throw err; // This allows the Modal to show the error
     }
   };
-
+  
   const handleDelete = async (itemId: string) => {
     if (!confirm('Are you sure you want to delete this item?')) return;
     const { success, error: deleteError } = await deleteClothingItem(itemId);
@@ -221,6 +231,31 @@ export default function ItemsPage() {
     }
 
     await loadData();
+  };
+
+  const handleRandomOutfit = async (selectedItems: ClothingItem[]) => {
+    if (!user || selectedItems.length === 0) return;
+
+    try {
+      const outfitId = `outfit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const newOutfit: Omit<OutfitCombination, 'createdAt'> = {
+        id: outfitId,
+        userId: user.uid,
+        name: `Random Outfit ${new Date().toLocaleDateString()}`,
+        itemIds: selectedItems.map(item => item.id),
+        isFavorite: false,
+        notes: 'Generated randomly by AI Stylist',
+      };
+
+      const { success } = await saveOutfitCombination(newOutfit);
+      if (success) {
+        await loadData();
+        setActiveTab('outfits'); // Automatically switch to outfits tab to show it
+      }
+    } catch (err: any) {
+      setError(err.message);
+    }
   };
 
   const handleDeleteOutfit = async (outfitId: string) => {
@@ -377,6 +412,18 @@ export default function ItemsPage() {
           </div>
 
           <div className="mb-6" style={{ borderTop: `1px solid ${colors.peach}` }}></div>
+
+          {activeTab === 'items' && items.length > 0 && (
+            <div className="mb-6 px-2">
+              <p className="text-[10px] font-bold text-gray-400 uppercase mb-3 tracking-widest text-center">AI Stylist</p>
+              {/* Note: Ensure you have imported RandomOutfitGenerator at the top */}
+              <RandomOutfitGenerator
+                items={items}
+                availableCategories={allCategories}
+                onGenerate={handleRandomOutfit}
+              />
+            </div>
+          )}
 
           {/* Brand Filter */}
           <div className="mb-6">
@@ -788,14 +835,27 @@ export default function ItemsPage() {
                       >
                         {item.brand}
                       </span>
-                      <h3 className="font-semibold mb-1" style={{ color: colors.navy }}>
+                      
+                      {/* ✨ Show price badge if it exists */}
+                        {/* @ts-ignore */}
+                        {item.price && (
+                          <span className="text-xs font-black text-green-600">
+                            ${Number(item.price).toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+
+                      <h3 
+                        className="font-semibold mb-1 truncate" 
+                        style={{ color: colors.navy }}
+                      >
                         {item.name}
                       </h3>
+                      
                       <p className="text-xs" style={{ color: colors.navy, opacity: 0.5 }}>
                         {item.category} • {item.sizeChart.length} sizes
                       </p>
                     </div>
-                  </div>
                 ))}
 
                 {activeTab === 'items' && (
@@ -864,7 +924,12 @@ export default function ItemsPage() {
         isOpen={showUpload}
         onClose={() => setShowUpload(false)}
         onSubmit={handleUpload}
-        availableCategories={allCategories}
+        availableCategories={customCategories.map(c => c.name)}
+        onAddCategory={async (name, icon) => {
+           const categoryId = `cat_${Date.now()}`;
+           await saveCustomCategory({ id: categoryId, userId: user.uid, name, icon });
+           await loadData();
+        }}
       />
 
       <CreateOutfitModal
