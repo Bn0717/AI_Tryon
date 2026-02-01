@@ -1,13 +1,23 @@
-// lib/types/avatar.ts
+// lib/types/avatar.ts - UPDATED
 export interface ParametricAvatar {
   userId: string;
   height: number;
   chest: number;
   waist: number;
   shoulder: number;
-  torsoRatio: number;
-  photoUrl?: string;   // The 2D Selfie
-  avatarUrl?: string;  // ✨ NEW: The Avaturn 3D Model (.glb link)
-  createdAt: any;
-  updatedAt: any;
+  armLength?: number;
+  legLength?: number;
+  photoUrl?: string;
+  avatarUrl?: string;           // RPM/Avaturn model URL
+  selectedAnimation?: string;   // ✨ NEW: Selected animation name
+  createdAt?: any;
+  updatedAt?: any;
+}
+
+export interface MeasurementConfidence {
+  height: number;
+  chest: number;
+  waist: number;
+  shoulder: number;
+  overall: number;
 }
