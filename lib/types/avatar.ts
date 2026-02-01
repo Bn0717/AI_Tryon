@@ -9,7 +9,7 @@ export interface ParametricAvatar {
   legLength?: number;
   photoUrl?: string;
   avatarUrl?: string;           // RPM/Avaturn model URL
-  selectedAnimation?: string;   // ✨ NEW: Selected animation name
+  selectedAnimation?: string | null; // ✨ NEW: Selected animation name
   createdAt?: any;
   updatedAt?: any;
 }
