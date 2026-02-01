@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { Canvas, useFrame, useGraph } from '@react-three/fiber';
-import { useGLTF, OrbitControls, useAnimations, Html, Environment, Stage, Center } from '@react-three/drei';
+import { useGLTF, OrbitControls, useAnimations, Html, Environment, Stage, ContactShadows } from '@react-three/drei';
 import * as THREE from 'three';
 
 interface Props {
@@ -14,11 +14,11 @@ interface Props {
 
 function Avatar({ avatarUrl, selectedAnimation, measurements, onLoadAnimations }: any) {
   const group = useRef<THREE.Group>(null);
-  const { scene } = useGLTF(avatarUrl);
+  const gltf = useGLTF(avatarUrl) as any;
+  const scene = (gltf as any).scene || (Array.isArray(gltf) ? gltf[0].scene : null);
   const { animations: rawAnims } = useGLTF('/animations/merged-mixamo-animations.glb');
   const { nodes } = useGraph(scene);
 
-  // 1. CLEAN ANIMATIONS (Stay in place)
   const retargetedAnimations = useMemo(() => {
     if (!rawAnims || rawAnims.length === 0) return [];
     return rawAnims.map((clip) => {
@@ -51,61 +51,82 @@ function Avatar({ avatarUrl, selectedAnimation, measurements, onLoadAnimations }
     currentAction.current = newAction;
   }, [selectedAnimation, actions, retargetedAnimations]);
 
-  // 2. REALISTIC PROPORTIONAL SCALING
+  // --- NATURAL BODY SCALING LOGIC ---
   useFrame(() => {
     if (!scene) return;
 
     const findBone = (name: string) => nodes[name] || nodes[`mixamorig${name}`] || scene.getObjectByName(name);
     
-    // Bone Chain
     const hips = findBone('Hips');
-    const spine = findBone('Spine');   // Waist
-    const spine1 = findBone('Spine1'); // Chest
-    const spine2 = findBone('Spine2'); // Upper Shoulders
+    const spine = findBone('Spine');   
+    const spine1 = findBone('Spine1'); 
+    const spine2 = findBone('Spine2'); 
     const neck = findBone('Neck');
     const head = findBone('Head');
     const arms = [findBone('LeftArm'), findBone('RightArm')];
 
-    // Clamping to prevent extreme distortion from accidental inputs (e.g., 02)
-    const h = Math.max(100, measurements.height || 175);
-    const w = Math.max(40, measurements.waist || 80);
-    const c = Math.max(50, measurements.chest || 95);
-    const s = Math.max(25, measurements.shoulder || 45);
+    // Standard Averages
+    const BASE_H = 175, BASE_W = 80, BASE_C = 95, BASE_S = 45;
+
+    // Current Ratios
+    const hRatio = (measurements.height || BASE_H) / BASE_H;
+    const wRatio = (measurements.waist || BASE_W) / BASE_W;
+    const cRatio = (measurements.chest || BASE_C) / BASE_C;
+    const sRatio = (measurements.shoulder || BASE_S) / BASE_S;
 
     // 1. HEIGHT (Global)
-    scene.scale.setScalar(h / 175);
+    scene.scale.setScalar(hRatio);
+    if (hips) hips.position.set(0, 0, 0);
 
-    // 2. WAIST (Width/Depth)
-    const waistScale = w / 80;
+    /**
+     * DISTRIBUTED SCALING (Natural Rounding)
+     * To avoid the "Triangle/Vertex" look, we distribute the waist and chest 
+     * across multiple bones so the transition is smooth.
+     */
+    
+    // A. HIPS (Bases of the belly/waist)
+    // Hips take 30% of the waist expansion to broaden the lower torso naturally
+    const hipsGirth = 1 + (wRatio - 1) * 0.3;
+    if (hips) {
+      hips.scale.x = hipsGirth;
+      hips.scale.z = hipsGirth;
+    }
+
+    // B. SPINE (The main waist)
+    // Neutralize hipsGirth and apply the remaining waist expansion
     if (spine) {
-      spine.scale.x = waistScale;
-      spine.scale.z = waistScale;
+      spine.scale.x = wRatio / hipsGirth;
+      spine.scale.z = wRatio / hipsGirth;
     }
 
-    // 3. CHEST (Neutralizing parent waist)
-    const chestScale = c / 95;
+    // C. SPINE1 & SPINE2 (The Chest)
+    // We smooth the chest between Spine1 and Spine2
+    const chestGirth = cRatio;
     if (spine1) {
-      spine1.scale.x = chestScale / waistScale;
-      spine1.scale.z = chestScale / waistScale;
+      // Transition from waist to chest girth
+      const midGirth = (wRatio + chestGirth) / 2;
+      spine1.scale.x = midGirth / wRatio;
+      spine1.scale.z = midGirth / wRatio;
     }
 
-    // 4. SHOULDERS (Neutralizing waist/chest)
-    const shoulderScale = s / 45;
     if (spine2) {
-      spine2.scale.x = shoulderScale / (chestScale / waistScale * waistScale);
+      const chestInPlace = chestGirth / ((wRatio + chestGirth) / 2);
+      // Apply Shoulder Width (X only) while maintaining chest depth (Z)
+      spine2.scale.x = (sRatio / chestGirth) * chestInPlace;
+      spine2.scale.z = chestInPlace;
     }
 
-    // 5. THE FIX: Protect Extremities (Head & Arms)
-    // We must invert the accumulated scale of the entire torso chain
-    const totalTorsoX = waistScale * (chestScale / waistScale) * (spine2 ? spine2.scale.x : 1);
-    const totalTorsoZ = waistScale * (chestScale / waistScale);
+    // 2. INVERSE SCALING (Protects extremities from "bloating")
+    // Total accumulated scale from Hips -> Spine -> Spine1 -> Spine2
+    const totalTorsoX = hipsGirth * (wRatio / hipsGirth) * (spine1 ? spine1.scale.x : 1) * (spine2 ? spine2.scale.x : 1);
+    const totalTorsoZ = hipsGirth * (wRatio / hipsGirth) * (spine1 ? spine1.scale.z : 1) * (spine2 ? spine2.scale.z : 1);
 
     if (neck) {
       neck.scale.x = 1 / totalTorsoX;
       neck.scale.z = 1 / totalTorsoZ;
     }
     if (head) {
-        head.scale.x = head.scale.z = 1; // Double lock head
+        head.scale.x = head.scale.z = 1; 
     }
     arms.forEach(arm => {
       if (arm) {
@@ -139,40 +160,27 @@ export default function User3DModel(props: Props) {
 
   return (
     <div className="flex flex-col gap-6">
-      
-      {/* 3D CANVAS - PERFECTLY CENTERED */}
       <div className="w-full h-[650px] relative">
         <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 0, 4], fov: 35 }}>
           <ambientLight intensity={1.5} />
           <Environment preset="city" />
           
-          <React.Suspense fallback={<Html center>Loading Digital Twin...</Html>}>
-            {/* 
-               STAGE: This is the secret. 
-               - adjustCamera={1.8} will move the camera to fit the model's head and feet.
-               - center: true makes sure it's at the canvas center (5,5).
-            */}
+          <React.Suspense fallback={<Html center>Building Reality...</Html>}>
              <Stage 
                 adjustCamera={1.8} 
                 intensity={0.5} 
                 environment="city" 
                 center={{ position: [0, 0, 0] }}
-                contactShadow={true}
              >
                 <Avatar {...props} onLoadAnimations={handleAnimationsLoaded} />
              </Stage>
+             <ContactShadows opacity={0.4} scale={10} blur={2.5} far={20} resolution={256} color="#000000" />
           </React.Suspense>
           
-          <OrbitControls 
-            enablePan={false} 
-            minDistance={1} 
-            maxDistance={5} 
-            makeDefault
-          />
+          <OrbitControls enablePan={false} minDistance={1} maxDistance={5} makeDefault />
         </Canvas>
       </div>
 
-      {/* SELECTION BOX (CLEAN GRID) */}
       {availableAnimations.length > 0 && (
         <div className="p-6 bg-white rounded-3xl border-2 border-[#FFDBD1] shadow-sm">
           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Select Pose</p>
@@ -193,7 +201,6 @@ export default function User3DModel(props: Props) {
           </div>
         </div>
       )}
-
     </div>
   );
 }

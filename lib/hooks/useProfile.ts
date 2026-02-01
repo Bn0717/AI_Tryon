@@ -32,6 +32,7 @@ export const useProfile = (userId: string) => {
       waist: number;
       shoulder: number;
       avatarUrl?: string;
+      selectedAnimation?: string | null;
     },
     photoFile?: File
   ) => {
@@ -60,7 +61,8 @@ export const useProfile = (userId: string) => {
         ...measurements,
         torsoRatio: 0.52,
         photoUrl: photoUrl || profile?.photoUrl,
-        avatarUrl: measurements.avatarUrl || profile?.avatarUrl, // ✨ Add this line
+        avatarUrl: measurements.avatarUrl || profile?.avatarUrl,
+        selectedAnimation: measurements.selectedAnimation ?? profile?.selectedAnimation,
       };
 
       // Save or update

@@ -20,11 +20,7 @@ export default function Navbar() {
   const [showDropdown, setShowDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Hide navbar on login/signup pages
-  if (pathname === '/login' || pathname === '/signup') {
-    return null;
-  }
-
+  // 1. Move the useEffect UP (before the early return)
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -35,6 +31,11 @@ export default function Navbar() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // 2. NOW you can safely check the pathname and return early
+  if (pathname === '/login' || pathname === '/signup') {
+    return null;
+  }
 
   const handleLogout = async () => {
     await logout();
