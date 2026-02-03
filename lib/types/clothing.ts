@@ -1,4 +1,4 @@
-// lib/types/clothing.ts
+// lib/types/clothing.ts 
 
 /**
  * Size chart for a specific garment size
@@ -22,9 +22,9 @@ export interface ClothingItem {
   category: string;      // User can now add custom categories
   imageUrl?: string;
   sizeChart: SizeChart[];
-  sizeChartPhotoUrl?: string;  //  Photo of size chart label
-  userWearingSize?: string;    //  Which size the user actually wears
-  price?: number;              //  Optional price
+  sizeChartPhotoUrl?: string;  // ✨ NEW: Photo of size chart label
+  userWearingSize?: string;    // ✨ NEW: Which size the user actually wears
+  price?: number;              // ✨ NEW: Optional price
   isFavorite: boolean;
   lastViewed?: string;   // ISO timestamp of last view
   createdAt?: any;       // Firestore Timestamp

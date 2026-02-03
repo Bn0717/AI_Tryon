@@ -1,5 +1,4 @@
-// components/items/UploadClothingModal.tsx//
-
+// components/items/UploadClothingModal.tsx - REDESIGNED
 'use client';
 
 import { useState } from 'react';
@@ -43,13 +42,13 @@ export default function UploadClothingModal({
   const [brand, setBrand] = useState('');
   const [name, setName] = useState('');
   const [category, setCategory] = useState('');
+  const [sizeChartMode, setSizeChartMode] = useState<'photo' | 'manual' | null>(null);
   const [sizeChart, setSizeChart] = useState<SizeChart[]>([
     { size: 'S', chest: 0, length: 0, shoulder: 0 },
     { size: 'M', chest: 0, length: 0, shoulder: 0 },
     { size: 'L', chest: 0, length: 0, shoulder: 0 },
   ]);
   
-  // ✨ NEW FIELDS
   const [sizeChartPhoto, setSizeChartPhoto] = useState<File | null>(null);
   const [sizeChartPhotoPreview, setSizeChartPhotoPreview] = useState<string | null>(null);
   const [userWearingSize, setUserWearingSize] = useState<string>('');
@@ -57,7 +56,6 @@ export default function UploadClothingModal({
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryIcon, setNewCategoryIcon] = useState('📦');
-  const [showSampleChart, setShowSampleChart] = useState(false);
   
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,7 +72,6 @@ export default function UploadClothingModal({
     }
   };
 
-  // ✨ Handle size chart photo upload (just stores, no extraction)
   const handleSizeChartPhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -105,7 +102,6 @@ export default function UploadClothingModal({
     }
   };
 
-  // ✨ Add category inline
   const handleAddCategory = async () => {
     if (!newCategoryName.trim()) return;
     
@@ -138,7 +134,6 @@ export default function UploadClothingModal({
       return;
     }
 
-    // Validate size chart
     const validSizes = sizeChart.filter(s => 
       s.size && s.chest > 0 && s.length > 0 && s.shoulder > 0
     );
@@ -162,12 +157,13 @@ export default function UploadClothingModal({
         price: price ? parseFloat(price) : undefined,
       });
 
-      // Reset form
+      // Reset
       setPhoto(null);
       setPhotoPreview(null);
       setBrand('');
       setName('');
       setCategory('');
+      setSizeChartMode(null);
       setSizeChart([
         { size: 'S', chest: 0, length: 0, shoulder: 0 },
         { size: 'M', chest: 0, length: 0, shoulder: 0 },
@@ -187,17 +183,11 @@ export default function UploadClothingModal({
   };
 
   const allCategories = [...DEFAULT_CATEGORIES, ...availableCategories];
-  const sampleChart = [
-    { size: 'S', chest: 90, length: 68, shoulder: 42 },
-    { size: 'M', chest: 96, length: 70, shoulder: 44 },
-    { size: 'L', chest: 102, length: 72, shoulder: 46 },
-    { size: 'XL', chest: 108, length: 74, shoulder: 48 },
-  ];
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div 
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
         style={{ borderColor: colors.peach, borderWidth: 2 }}
       >
         <div className="p-8">
@@ -223,228 +213,211 @@ export default function UploadClothingModal({
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-6">
             
-            {/* LEFT COLUMN */}
-            <div className="space-y-6">
-              
-              {/* Item Photo */}
-              <div>
-                <label className="block text-sm font-semibold mb-2" style={{ color: colors.navy }}>
-                  Item Photo *
-                </label>
-                <div 
-                  className="border-2 border-dashed rounded-xl overflow-hidden cursor-pointer transition-colors hover:border-opacity-70"
-                  style={{ borderColor: colors.peach, backgroundColor: colors.cream }}
-                >
-                  {photoPreview ? (
-                    <div className="relative">
-                      <img src={photoPreview} alt="Preview" className="w-full h-64 object-cover" />
-                      <button
-                        onClick={() => {
-                          setPhoto(null);
-                          setPhotoPreview(null);
-                        }}
-                        className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white flex items-center justify-center shadow"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  ) : (
-                    <label className="block h-64 flex flex-col items-center justify-center cursor-pointer">
-                      <svg className="w-12 h-12 mb-2" style={{ color: colors.navy, opacity: 0.3 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      <p className="text-sm font-medium" style={{ color: colors.navy }}>
-                        Click to upload item photo
-                      </p>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handlePhotoChange}
-                      />
-                    </label>
-                  )}
-                </div>
-              </div>
-
-              {/* Brand & Name */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold mb-2" style={{ color: colors.navy }}>
-                    Brand *
-                  </label>
-                  <input
-                    type="text"
-                    value={brand}
-                    onChange={(e) => setBrand(e.target.value)}
-                    placeholder="e.g., Uniqlo"
-                    className="w-full px-4 py-3 rounded-lg border-2 focus:outline-none"
-                    style={{ borderColor: colors.peach, backgroundColor: colors.cream }}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold mb-2" style={{ color: colors.navy }}>
-                    Item Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g., Oxford Shirt"
-                    className="w-full px-4 py-3 rounded-lg border-2 focus:outline-none"
-                    style={{ borderColor: colors.peach, backgroundColor: colors.cream }}
-                  />
-                </div>
-              </div>
-
-              {/* Category with inline add */}
-              <div>
-                <label className="block text-sm font-semibold mb-2" style={{ color: colors.navy }}>
-                  Category *
-                </label>
-                
-                {showAddCategory ? (
-                  <div className="space-y-2">
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={newCategoryIcon}
-                        onChange={(e) => setNewCategoryIcon(e.target.value)}
-                        placeholder="📦"
-                        className="w-16 px-3 py-3 rounded-lg border-2 text-center text-xl"
-                        style={{ borderColor: colors.peach, backgroundColor: colors.cream }}
-                        maxLength={2}
-                      />
-                      <input
-                        type="text"
-                        value={newCategoryName}
-                        onChange={(e) => setNewCategoryName(e.target.value)}
-                        placeholder="Category name"
-                        className="flex-1 px-4 py-3 rounded-lg border-2"
-                        style={{ borderColor: colors.peach, backgroundColor: colors.cream }}
-                      />
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleAddCategory}
-                        className="flex-1 px-4 py-2 rounded-lg font-semibold text-white"
-                        style={{ backgroundColor: colors.navy }}
-                      >
-                        Add Category
-                      </button>
-                      <button
-                        onClick={() => setShowAddCategory(false)}
-                        className="px-4 py-2 rounded-lg font-semibold"
-                        style={{ backgroundColor: colors.cream, color: colors.navy }}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <select
-                      value={category}
-                      onChange={(e) => setCategory(e.target.value)}
-                      className="w-full px-4 py-3 rounded-lg border-2 focus:outline-none"
-                      style={{ borderColor: colors.peach, backgroundColor: colors.cream }}
-                    >
-                      <option value="">Select category...</option>
-                      {allCategories.map((cat) => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                    </select>
+            {/* Item Photo */}
+            <div>
+              <label className="block text-sm font-semibold mb-2" style={{ color: colors.navy }}>
+                Item Photo *
+              </label>
+              <div 
+                className="border-2 border-dashed rounded-xl overflow-hidden cursor-pointer transition-colors hover:border-opacity-70"
+                style={{ borderColor: colors.peach, backgroundColor: colors.cream }}
+              >
+                {photoPreview ? (
+                  <div className="relative">
+                    <img src={photoPreview} alt="Preview" className="w-full h-64 object-cover" />
                     <button
-                      onClick={() => setShowAddCategory(true)}
-                      className="w-full px-4 py-2 rounded-lg font-semibold border-2 transition-colors hover:opacity-80"
-                      style={{ borderColor: colors.peach, color: colors.navy }}
+                      onClick={() => {
+                        setPhoto(null);
+                        setPhotoPreview(null);
+                      }}
+                      className="absolute top-2 right-2 w-6 h-6 rounded-full bg-white flex items-center justify-center shadow"
                     >
-                      + Add New Category
+                      ✕
                     </button>
                   </div>
+                ) : (
+                  <label className="block h-64 flex flex-col items-center justify-center cursor-pointer">
+                    <svg className="w-12 h-12 mb-2" style={{ color: colors.navy, opacity: 0.3 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <p className="text-sm font-medium" style={{ color: colors.navy }}>
+                      Click to upload item photo
+                    </p>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handlePhotoChange}
+                    />
+                  </label>
                 )}
               </div>
-
-              {/* ✨ Price (Optional) */}
-              <div>
-                <label className="block text-sm font-semibold mb-2" style={{ color: colors.navy }}>
-                  Price (Optional)
-                </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold" style={{ color: colors.navy }}>$</span>
-                  <input
-                    type="number"
-                    value={price}
-                    onChange={(e) => setPrice(e.target.value)}
-                    placeholder="0.00"
-                    step="0.01"
-                    min="0"
-                    className="w-full pl-10 pr-4 py-3 rounded-lg border-2 focus:outline-none"
-                    style={{ borderColor: colors.peach, backgroundColor: colors.cream }}
-                  />
-                </div>
-              </div>
-
             </div>
 
-            {/* RIGHT COLUMN */}
-            <div className="space-y-6">
+            {/* Brand & Name */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold mb-2" style={{ color: colors.navy }}>
+                  Brand *
+                </label>
+                <input
+                  type="text"
+                  value={brand}
+                  onChange={(e) => setBrand(e.target.value)}
+                  placeholder="e.g., Uniqlo"
+                  className="w-full px-4 py-3 rounded-lg border-2 focus:outline-none"
+                  style={{ borderColor: colors.peach, backgroundColor: colors.cream }}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-2" style={{ color: colors.navy }}>
+                  Item Name *
+                </label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g., Oxford Shirt"
+                  className="w-full px-4 py-3 rounded-lg border-2 focus:outline-none"
+                  style={{ borderColor: colors.peach, backgroundColor: colors.cream }}
+                />
+              </div>
+            </div>
+
+            {/* Category */}
+            <div>
+              <label className="block text-sm font-semibold mb-2" style={{ color: colors.navy }}>
+                Category *
+              </label>
               
-              {/* ✨ Size Chart Photo (Reference only, no AI) */}
+              {showAddCategory ? (
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={newCategoryIcon}
+                      onChange={(e) => setNewCategoryIcon(e.target.value)}
+                      placeholder="📦"
+                      className="w-16 px-3 py-3 rounded-lg border-2 text-center text-xl"
+                      style={{ borderColor: colors.peach, backgroundColor: colors.cream }}
+                      maxLength={2}
+                    />
+                    <input
+                      type="text"
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                      placeholder="Category name"
+                      className="flex-1 px-4 py-3 rounded-lg border-2"
+                      style={{ borderColor: colors.peach, backgroundColor: colors.cream }}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleAddCategory}
+                      className="flex-1 px-4 py-2 rounded-lg font-semibold text-white"
+                      style={{ backgroundColor: colors.navy }}
+                    >
+                      Add Category
+                    </button>
+                    <button
+                      onClick={() => setShowAddCategory(false)}
+                      className="px-4 py-2 rounded-lg font-semibold"
+                      style={{ backgroundColor: colors.cream, color: colors.navy }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className="w-full px-4 py-3 rounded-lg border-2 focus:outline-none"
+                    style={{ borderColor: colors.peach, backgroundColor: colors.cream }}
+                  >
+                    <option value="">Select category...</option>
+                    {allCategories.map((cat) => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => setShowAddCategory(true)}
+                    className="w-full px-4 py-2 rounded-lg font-semibold border-2 transition-colors hover:opacity-80"
+                    style={{ borderColor: colors.peach, color: colors.navy }}
+                  >
+                    + Add New Category
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Size Chart Mode Selection */}
+            {!sizeChartMode && (
+              <div>
+                <label className="block text-sm font-semibold mb-2" style={{ color: colors.navy }}>
+                  Size Chart *
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setSizeChartMode('photo')}
+                    className="p-4 rounded-xl border-2 hover:opacity-80 transition-all"
+                    style={{ borderColor: colors.peach, backgroundColor: colors.cream }}
+                  >
+                    <span className="text-2xl block mb-2">📸</span>
+                    <p className="text-sm font-semibold" style={{ color: colors.navy }}>
+                      Upload Photo
+                    </p>
+                    <p className="text-xs mt-1" style={{ color: colors.navy, opacity: 0.6 }}>
+                      Photo reference
+                    </p>
+                  </button>
+                  <button
+                    onClick={() => setSizeChartMode('manual')}
+                    className="p-4 rounded-xl border-2 hover:opacity-80 transition-all"
+                    style={{ borderColor: colors.peach, backgroundColor: colors.cream }}
+                  >
+                    <span className="text-2xl block mb-2">✍️</span>
+                    <p className="text-sm font-semibold" style={{ color: colors.navy }}>
+                      Type Manually
+                    </p>
+                    <p className="text-xs mt-1" style={{ color: colors.navy, opacity: 0.6 }}>
+                      Enter sizes
+                    </p>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Size Chart Photo Upload */}
+            {sizeChartMode === 'photo' && (
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-sm font-semibold" style={{ color: colors.navy }}>
-                    Size Chart Photo (Optional)
+                    Size Chart Photo
                   </label>
                   <button
-                    onClick={() => setShowSampleChart(!showSampleChart)}
+                    onClick={() => {
+                      setSizeChartMode(null);
+                      setSizeChartPhoto(null);
+                      setSizeChartPhotoPreview(null);
+                    }}
                     className="text-xs font-semibold px-3 py-1 rounded-full"
-                    style={{ backgroundColor: colors.peach, color: colors.navy }}
+                    style={{ backgroundColor: colors.cream, color: colors.navy }}
                   >
-                    {showSampleChart ? 'Hide' : 'Show'} Sample
+                    Change Method
                   </button>
                 </div>
 
-                {showSampleChart && (
-                  <div className="mb-3 p-3 rounded-lg" style={{ backgroundColor: colors.cream }}>
-                    <p className="text-xs font-semibold mb-2" style={{ color: colors.navy }}>📸 Sample Size Chart:</p>
-                    <div className="bg-white p-2 rounded">
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr style={{ backgroundColor: colors.cream }}>
-                            <th className="p-1">Size</th>
-                            <th className="p-1">Chest</th>
-                            <th className="p-1">Length</th>
-                            <th className="p-1">Shoulder</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {sampleChart.map((s) => (
-                            <tr key={s.size} className="text-center">
-                              <td className="p-1 font-bold">{s.size}</td>
-                              <td className="p-1">{s.chest}cm</td>
-                              <td className="p-1">{s.length}cm</td>
-                              <td className="p-1">{s.shoulder}cm</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                    <p className="text-xs mt-2" style={{ color: colors.navy, opacity: 0.6 }}>
-                      Take a photo like this, then enter the numbers manually below
-                    </p>
-                  </div>
-                )}
-
                 <div 
-                  className="border-2 border-dashed rounded-xl overflow-hidden cursor-pointer"
+                  className="border-2 border-dashed rounded-xl overflow-hidden cursor-pointer mb-4"
                   style={{ borderColor: colors.pink, backgroundColor: colors.cream }}
                 >
                   {sizeChartPhotoPreview ? (
                     <div className="relative">
-                      <img src={sizeChartPhotoPreview} alt="Size chart" className="w-full h-40 object-contain p-2" />
+                      <img src={sizeChartPhotoPreview} alt="Size chart" className="w-full h-48 object-contain p-2" />
                       <button
                         onClick={() => {
                           setSizeChartPhoto(null);
@@ -456,13 +429,10 @@ export default function UploadClothingModal({
                       </button>
                     </div>
                   ) : (
-                    <label className="block h-40 flex flex-col items-center justify-center cursor-pointer">
-                      <span className="text-2xl mb-1">📏</span>
-                      <p className="text-xs font-medium" style={{ color: colors.navy }}>
+                    <label className="block h-48 flex flex-col items-center justify-center cursor-pointer">
+                      <span className="text-3xl mb-2">📏</span>
+                      <p className="text-sm font-medium" style={{ color: colors.navy }}>
                         Upload size chart photo
-                      </p>
-                      <p className="text-xs" style={{ color: colors.navy, opacity: 0.6 }}>
-                        For reference
                       </p>
                       <input
                         type="file"
@@ -473,58 +443,83 @@ export default function UploadClothingModal({
                     </label>
                   )}
                 </div>
-              </div>
 
-              {/* Size Chart Table */}
-              <div>
-                <label className="block text-sm font-semibold mb-2" style={{ color: colors.navy }}>
-                  Size Chart * (cm)
-                </label>
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {sizeChart.map((size, index) => (
-                    <div key={index} className="flex gap-2 items-center">
-                      <input
-                        type="text"
-                        value={size.size}
-                        onChange={(e) => handleSizeChange(index, 'size', e.target.value)}
-                        placeholder="Size"
-                        className="w-16 px-2 py-2 rounded border-2 text-center font-bold"
-                        style={{ borderColor: colors.peach, backgroundColor: colors.cream }}
-                      />
-                      <input
-                        type="number"
-                        value={size.chest || ''}
-                        onChange={(e) => handleSizeChange(index, 'chest', e.target.value)}
-                        placeholder="Chest"
-                        className="flex-1 px-2 py-2 rounded border-2 text-sm"
-                        style={{ borderColor: colors.peach, backgroundColor: colors.cream }}
-                      />
-                      <input
-                        type="number"
-                        value={size.length || ''}
-                        onChange={(e) => handleSizeChange(index, 'length', e.target.value)}
-                        placeholder="Length"
-                        className="flex-1 px-2 py-2 rounded border-2 text-sm"
-                        style={{ borderColor: colors.peach, backgroundColor: colors.cream }}
-                      />
-                      <input
-                        type="number"
-                        value={size.shoulder || ''}
-                        onChange={(e) => handleSizeChange(index, 'shoulder', e.target.value)}
-                        placeholder="Shoulder"
-                        className="flex-1 px-2 py-2 rounded border-2 text-sm"
-                        style={{ borderColor: colors.peach, backgroundColor: colors.cream }}
-                      />
-                      {sizeChart.length > 1 && (
-                        <button
-                          onClick={() => removeSizeRow(index)}
-                          className="w-8 h-8 rounded flex items-center justify-center text-red-600 hover:bg-red-50"
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                {/* Info */}
+                <div className="p-4 rounded-lg mb-4" style={{ backgroundColor: colors.cream }}>
+                  <p className="text-xs font-semibold" style={{ color: colors.navy }}>
+                    ℹ️ Please enter the measurements below (photo is for reference)
+                  </p>
+                </div>
+
+                {/* Size table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full border-2 rounded-lg overflow-hidden" style={{ borderColor: colors.peach }}>
+                    <thead>
+                      <tr style={{ backgroundColor: colors.peach }}>
+                        <th className="px-3 py-2 text-xs font-bold" style={{ color: colors.navy }}>Size</th>
+                        <th className="px-3 py-2 text-xs font-bold" style={{ color: colors.navy }}>Chest</th>
+                        <th className="px-3 py-2 text-xs font-bold" style={{ color: colors.navy }}>Length</th>
+                        <th className="px-3 py-2 text-xs font-bold" style={{ color: colors.navy }}>Shoulder</th>
+                        <th className="px-3 py-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sizeChart.map((size, index) => (
+                        <tr key={index} className="border-t" style={{ borderColor: colors.peach }}>
+                          <td className="px-2 py-2">
+                            <input
+                              type="text"
+                              value={size.size}
+                              onChange={(e) => handleSizeChange(index, 'size', e.target.value)}
+                              placeholder="S"
+                              className="w-12 px-2 py-1 rounded border text-center text-sm font-bold"
+                              style={{ borderColor: colors.peach, backgroundColor: 'white' }}
+                            />
+                          </td>
+                          <td className="px-2 py-2">
+                            <input
+                              type="number"
+                              value={size.chest || ''}
+                              onChange={(e) => handleSizeChange(index, 'chest', e.target.value)}
+                              placeholder="90"
+                              className="w-full px-2 py-1 rounded border text-sm"
+                              style={{ borderColor: colors.peach, backgroundColor: 'white' }}
+                            />
+                          </td>
+                          <td className="px-2 py-2">
+                            <input
+                              type="number"
+                              value={size.length || ''}
+                              onChange={(e) => handleSizeChange(index, 'length', e.target.value)}
+                              placeholder="68"
+                              className="w-full px-2 py-1 rounded border text-sm"
+                              style={{ borderColor: colors.peach, backgroundColor: 'white' }}
+                            />
+                          </td>
+                          <td className="px-2 py-2">
+                            <input
+                              type="number"
+                              value={size.shoulder || ''}
+                              onChange={(e) => handleSizeChange(index, 'shoulder', e.target.value)}
+                              placeholder="42"
+                              className="w-full px-2 py-1 rounded border text-sm"
+                              style={{ borderColor: colors.peach, backgroundColor: 'white' }}
+                            />
+                          </td>
+                          <td className="px-2 py-2">
+                            {sizeChart.length > 1 && (
+                              <button
+                                onClick={() => removeSizeRow(index)}
+                                className="text-red-600 hover:text-red-800 text-sm"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
                 <button
                   onClick={addSizeRow}
@@ -534,8 +529,105 @@ export default function UploadClothingModal({
                   + Add Size
                 </button>
               </div>
+            )}
 
-              {/* ✨ User Wearing Size */}
+            {/* Manual Size Chart */}
+            {sizeChartMode === 'manual' && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-sm font-semibold" style={{ color: colors.navy }}>
+                    Size Chart (cm)
+                  </label>
+                  <button
+                    onClick={() => setSizeChartMode(null)}
+                    className="text-xs font-semibold px-3 py-1 rounded-full"
+                    style={{ backgroundColor: colors.cream, color: colors.navy }}
+                  >
+                    Change Method
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full border-2 rounded-lg overflow-hidden" style={{ borderColor: colors.peach }}>
+                    <thead>
+                      <tr style={{ backgroundColor: colors.peach }}>
+                        <th className="px-3 py-2 text-xs font-bold" style={{ color: colors.navy }}>Size</th>
+                        <th className="px-3 py-2 text-xs font-bold" style={{ color: colors.navy }}>Chest</th>
+                        <th className="px-3 py-2 text-xs font-bold" style={{ color: colors.navy }}>Length</th>
+                        <th className="px-3 py-2 text-xs font-bold" style={{ color: colors.navy }}>Shoulder</th>
+                        <th className="px-3 py-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sizeChart.map((size, index) => (
+                        <tr key={index} className="border-t" style={{ borderColor: colors.peach }}>
+                          <td className="px-2 py-2">
+                            <input
+                              type="text"
+                              value={size.size}
+                              onChange={(e) => handleSizeChange(index, 'size', e.target.value)}
+                              placeholder="S"
+                              className="w-12 px-2 py-1 rounded border text-center text-sm font-bold"
+                              style={{ borderColor: colors.peach, backgroundColor: 'white' }}
+                            />
+                          </td>
+                          <td className="px-2 py-2">
+                            <input
+                              type="number"
+                              value={size.chest || ''}
+                              onChange={(e) => handleSizeChange(index, 'chest', e.target.value)}
+                              placeholder="90"
+                              className="w-full px-2 py-1 rounded border text-sm"
+                              style={{ borderColor: colors.peach, backgroundColor: 'white' }}
+                            />
+                          </td>
+                          <td className="px-2 py-2">
+                            <input
+                              type="number"
+                              value={size.length || ''}
+                              onChange={(e) => handleSizeChange(index, 'length', e.target.value)}
+                              placeholder="68"
+                              className="w-full px-2 py-1 rounded border text-sm"
+                              style={{ borderColor: colors.peach, backgroundColor: 'white' }}
+                            />
+                          </td>
+                          <td className="px-2 py-2">
+                            <input
+                              type="number"
+                              value={size.shoulder || ''}
+                              onChange={(e) => handleSizeChange(index, 'shoulder', e.target.value)}
+                              placeholder="42"
+                              className="w-full px-2 py-1 rounded border text-sm"
+                              style={{ borderColor: colors.peach, backgroundColor: 'white' }}
+                            />
+                          </td>
+                          <td className="px-2 py-2">
+                            {sizeChart.length > 1 && (
+                              <button
+                                onClick={() => removeSizeRow(index)}
+                                className="text-red-600 hover:text-red-800 text-sm"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <button
+                  onClick={addSizeRow}
+                  className="w-full mt-2 px-4 py-2 rounded-lg font-semibold border-2"
+                  style={{ borderColor: colors.peach, color: colors.navy }}
+                >
+                  + Add Size
+                </button>
+              </div>
+            )}
+
+            {/* User Wearing Size */}
+            {sizeChartMode && (
               <div>
                 <label className="block text-sm font-semibold mb-2" style={{ color: colors.navy }}>
                   Which size do you wear? (Optional)
@@ -552,7 +644,26 @@ export default function UploadClothingModal({
                   ))}
                 </select>
               </div>
+            )}
 
+            {/* Price at Bottom */}
+            <div>
+              <label className="block text-sm font-semibold mb-2" style={{ color: colors.navy }}>
+                Price (Optional)
+              </label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold" style={{ color: colors.navy }}>$</span>
+                <input
+                  type="number"
+                  value={price}
+                  onChange={(e) => setPrice(e.target.value)}
+                  placeholder="0.00"
+                  step="0.01"
+                  min="0"
+                  className="w-full pl-10 pr-4 py-3 rounded-lg border-2 focus:outline-none"
+                  style={{ borderColor: colors.peach, backgroundColor: colors.cream }}
+                />
+              </div>
             </div>
 
           </div>

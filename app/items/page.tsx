@@ -29,6 +29,7 @@ import FitRecommendationModal from '@/components/items/FitRecommendationModal';
 import ItemDetailsModal from '@/components/items/ItemDetailsModal';
 import type { ParametricAvatar } from '@/lib/types/avatar';
 import RandomOutfitGenerator from '@/components/items/RandomOutfitGenerator';
+import RandomOutfitModal from '@/components/items/RandomOutfitGenerator';
 
 const colors = {
   cream: '#F8F3EA',
@@ -62,6 +63,8 @@ export default function ItemsPage() {
   const [showFitModal, setShowFitModal] = useState(false);
   const [selectedItemForDetails, setSelectedItemForDetails] = useState<ClothingItem | null>(null);
   const [userProfile, setUserProfile] = useState<ParametricAvatar | null>(null);
+  const [showRandomModal, setShowRandomModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   
 
   useEffect(() => {
@@ -193,6 +196,18 @@ export default function ItemsPage() {
     }
   };
 
+  const handleDeleteOutfit = async (outfitId: string) => {
+    if (!confirm('Are you sure you want to delete this outfit?')) return;
+    
+    const { success, error: deleteError } = await deleteOutfitCombination(outfitId);
+    
+    if (success) {
+      await loadData();
+    } else {
+      setError(deleteError || 'Failed to delete outfit');
+    }
+  };
+
   const handleItemClick = async (itemId: string) => {
     setSelectedItem(itemId);
     
@@ -237,32 +252,29 @@ export default function ItemsPage() {
     if (!user || selectedItems.length === 0) return;
 
     try {
-      const outfitId = `outfit_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      const newOutfit: Omit<OutfitCombination, 'createdAt'> = {
-        id: outfitId,
+      const outfit: Omit<OutfitCombination, 'createdAt'> = { // Use Omit to match your types
+        id: `outfit_${Date.now()}`,
         userId: user.uid,
         name: `Random Outfit ${new Date().toLocaleDateString()}`,
         itemIds: selectedItems.map(item => item.id),
         isFavorite: false,
-        notes: 'Generated randomly by AI Stylist',
+        notes: 'Generated randomly',
       };
 
-      const { success } = await saveOutfitCombination(newOutfit);
-      if (success) {
-        await loadData();
-        setActiveTab('outfits'); // Automatically switch to outfits tab to show it
-      }
+      const { success, error: saveError } = await saveOutfitCombination(outfit);
+      if (!success) throw new Error(saveError || 'Failed to save');
+
+      await loadData();
+      
+      // Show success message
+      setSuccessMessage('Random outfit saved!');
+      setTimeout(() => setSuccessMessage(null), 2000);
+      
+      // Switch to outfits tab and close modal
+      setActiveTab('outfits');
+      setShowRandomModal(false);
     } catch (err: any) {
       setError(err.message);
-    }
-  };
-
-  const handleDeleteOutfit = async (outfitId: string) => {
-    if (!confirm('Delete this outfit combination?')) return;
-    const { success } = await deleteOutfitCombination(outfitId);
-    if (success) {
-      await loadData();
     }
   };
 
@@ -412,18 +424,6 @@ export default function ItemsPage() {
           </div>
 
           <div className="mb-6" style={{ borderTop: `1px solid ${colors.peach}` }}></div>
-
-          {activeTab === 'items' && items.length > 0 && (
-            <div className="mb-6 px-2">
-              <p className="text-[10px] font-bold text-gray-400 uppercase mb-3 tracking-widest text-center">AI Stylist</p>
-              {/* Note: Ensure you have imported RandomOutfitGenerator at the top */}
-              <RandomOutfitGenerator
-                items={items}
-                availableCategories={allCategories}
-                onGenerate={handleRandomOutfit}
-              />
-            </div>
-          )}
 
           {/* Brand Filter */}
           <div className="mb-6">
@@ -586,53 +586,58 @@ export default function ItemsPage() {
       <div className="flex-1 overflow-y-auto" style={{ backgroundColor: colors.cream }}>
         <div className="p-8">
           
-          {/* Tabs - NOW CLICKABLE */}
-          <div className="flex gap-4 mb-8 border-b" style={{ borderColor: colors.peach }}>
-            <button 
-              onClick={() => setActiveTab('items')}
-              className="px-4 py-3 font-semibold transition-colors"
-              style={{ 
-                color: colors.navy,
-                borderBottom: activeTab === 'items' ? `2px solid ${colors.navy}` : 'none',
-                opacity: activeTab === 'items' ? 1 : 0.5
-              }}
+          {/* Random Generator Button */}
+          <div className="mb-6">
+            <button
+              onClick={() => setShowRandomModal(true)}
+              className="px-6 py-3 rounded-lg font-semibold text-white flex items-center gap-2 shadow-sm hover:opacity-90 transition-all"
+              style={{ backgroundColor: colors.navy }}
             >
-              All Items
-            </button>
-            <button 
-              onClick={() => setActiveTab('favorites')}
-              className="px-4 py-3 font-semibold transition-colors"
-              style={{ 
-                color: colors.navy,
-                borderBottom: activeTab === 'favorites' ? `2px solid ${colors.navy}` : 'none',
-                opacity: activeTab === 'favorites' ? 1 : 0.5
-              }}
-            >
-              ⭐ Favorites
-            </button>
-            <button 
-              onClick={() => setActiveTab('recent')}
-              className="px-4 py-3 font-semibold transition-colors"
-              style={{ 
-                color: colors.navy,
-                borderBottom: activeTab === 'recent' ? `2px solid ${colors.navy}` : 'none',
-                opacity: activeTab === 'recent' ? 1 : 0.5
-              }}
-            >
-              🕒 Recent
-            </button>
-            <button 
-              onClick={() => setActiveTab('outfits')}
-              className="px-4 py-3 font-semibold transition-colors"
-              style={{ 
-                color: colors.navy,
-                borderBottom: activeTab === 'outfits' ? `2px solid ${colors.navy}` : 'none',
-                opacity: activeTab === 'outfits' ? 1 : 0.5
-              }}
-            >
-              ✨ Outfits ({outfits.length})
+              <span className="text-xl">🎲</span>
+              Random Outfit Generator
             </button>
           </div>
+
+          {/* ✨ NEW: Dynamic Tabs with Counts */}
+          {(() => {
+            const tabs = [
+              { id: 'items', label: `All Items (${items.length})` },
+              { id: 'favorites', label: `Favourite (${items.filter(i => i.isFavorite).length})` },
+              { id: 'recent', label: 'Recent' },
+              { id: 'outfits', label: `Outfits (${outfits.length})` },
+            ];
+
+            return (
+              <div className="flex gap-2 mb-8 border-b" style={{ borderColor: colors.peach }}>
+                {tabs.map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className="px-6 py-3 font-semibold transition-colors relative"
+                    style={{ 
+                      color: colors.navy,
+                      opacity: activeTab === tab.id ? 1 : 0.5
+                    }}
+                  >
+                    {tab.label}
+                    {activeTab === tab.id && (
+                      <div 
+                        className="absolute bottom-0 left-0 right-0 h-0.5" 
+                        style={{ backgroundColor: colors.navy }} 
+                      />
+                    )}
+                  </button>
+                ))}
+              </div>
+            );
+          })()}
+
+          {/* Success Message Toast */}
+            {successMessage && (
+              <div className="fixed bottom-8 right-8 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-bounce">
+                {successMessage}
+              </div>
+            )}
 
           {error && (
             <div className="mb-6 p-4 rounded-lg bg-red-50 border border-red-200">
@@ -937,6 +942,14 @@ export default function ItemsPage() {
         onClose={() => setShowOutfitModal(false)}
         availableItems={items}
         onSubmit={handleCreateOutfit}
+      />
+
+      <RandomOutfitModal
+        isOpen={showRandomModal}
+        onClose={() => setShowRandomModal(false)}
+        items={items}
+        availableCategories={allCategories}
+        onGenerate={handleRandomOutfit}
       />
 
       {selectedItemForDetails && (
