@@ -63,10 +63,10 @@ export default function ItemDetailsModal({ isOpen, onClose, item, onCheckFit }: 
             <div>
               <div 
                 className="aspect-[3/4] rounded-xl overflow-hidden flex items-center justify-center"
-                style={{ backgroundColor: colors.peach }}
+                style={{ backgroundColor: 'white' }}
               >
                 {item.imageUrl ? (
-                  <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                  <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" crossOrigin="anonymous" />
                 ) : (
                   <svg 
                     className="w-32 h-32" 

@@ -1,8 +1,19 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // This is required in Next.js 16 to allow custom webpack rules
   turbopack: {}, 
-  
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+          { key: 'Cross-Origin-Embedder-Policy', value: 'credentialless' },
+        ],
+      },
+    ];
+  },
+
+  // 3. Webpack fallbacks for MediaPipe/WASM
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.resolve.fallback = {

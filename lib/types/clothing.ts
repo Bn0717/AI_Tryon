@@ -22,9 +22,9 @@ export interface ClothingItem {
   category: string;      // User can now add custom categories
   imageUrl?: string;
   sizeChart: SizeChart[];
-  sizeChartPhotoUrl?: string;  // ✨ NEW: Photo of size chart label
-  userWearingSize?: string;    // ✨ NEW: Which size the user actually wears
-  price?: number;              // ✨ NEW: Optional price
+  sizeChartPhotoUrl?: string | null; 
+  userWearingSize?: string | null;   
+  price?: number | null;             
   isFavorite: boolean;
   lastViewed?: string;   // ISO timestamp of last view
   createdAt?: any;       // Firestore Timestamp

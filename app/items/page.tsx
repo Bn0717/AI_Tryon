@@ -30,6 +30,7 @@ import ItemDetailsModal from '@/components/items/ItemDetailsModal';
 import type { ParametricAvatar } from '@/lib/types/avatar';
 import RandomOutfitGenerator from '@/components/items/RandomOutfitGenerator';
 import RandomOutfitModal from '@/components/items/RandomOutfitGenerator';
+import { removeBackgroundFree } from '@/lib/utils/imageProcessing';
 
 const colors = {
   cream: '#F8F3EA',
@@ -65,7 +66,7 @@ export default function ItemsPage() {
   const [userProfile, setUserProfile] = useState<ParametricAvatar | null>(null);
   const [showRandomModal, setShowRandomModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  
+  const [processingItems, setProcessingItems] = useState<any[]>([]);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -126,57 +127,65 @@ export default function ItemsPage() {
     }
   };
 
-  const handleUpload = async (data: {
-    photo: File;               // Matches Modal
-    brand: string;
-    name: string;
-    category: string;
-    sizeChart: SizeChart[];    // Matches Modal
-    sizeChartPhoto?: File;     
-    userWearingSize?: string;  
-    price?: number;            
-  }) => {
+  const handleUpload = async (data: any) => {
     if (!user) return;
 
-    try {
-      let imageUrl = '';
-      let sizeChartPhotoUrl = '';
-      const itemId = `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    // 1. Create the "Ghost" item for immediate display
+    const tempId = `temp_${Date.now()}`;
+    const placeholderItem = {
+      id: tempId,
+      name: data.name,
+      brand: data.brand,
+      imageUrl: URL.createObjectURL(data.photo), // Temporary local preview
+    };
 
-      // 1. Upload main item photo
-      const { url, error: uploadError } = await uploadClothingPhoto(user.uid, itemId, data.photo);
-      if (uploadError || !url) throw new Error(uploadError || 'Failed to upload image');
-      imageUrl = url;
+    setProcessingItems(prev => [placeholderItem, ...prev]);
 
-      // 2. Upload size chart photo if provided
-      if (data.sizeChartPhoto) {
-        const { url: scUrl, error: scError } = await uploadClothingPhoto(user.uid, `${itemId}_chart`, data.sizeChartPhoto);
-        if (!scError && scUrl) sizeChartPhotoUrl = scUrl;
+    // 2. Start the heavy AI work in the BACKGROUND (no 'await' here)
+    const runBackgroundAI = async () => {
+      try {
+        let finalImage: File = data.photo;
+        const cleanBlob = await removeBackgroundFree(data.photo);
+        if (cleanBlob) {
+          const safeBaseName = data.photo.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+          finalImage = new File([cleanBlob], `${safeBaseName}_processed.png`, { type: "image/png" });
+        }
+
+        const itemId = `item_${Date.now()}`;
+        const { url } = await uploadClothingPhoto(user.uid, itemId, finalImage);
+
+        const newItem = {
+          id: itemId,
+          userId: user.uid,
+          brand: data.brand,
+          name: data.name,
+          category: data.category,
+          imageUrl: url || '',
+          sizeChart: data.sizeChart,
+          isFavorite: false,
+          price: data.price || null,
+          sizeChartPhotoUrl: null,
+          userWearingSize: data.userWearingSize || null,
+        };
+
+        await saveClothingItem(newItem);
+        setProcessingItems(prev => prev.filter(i => i.id !== tempId)); // Remove ghost
+        await loadData(); // Refresh real list
+      } catch (err) {
+        console.error(err);
+        setProcessingItems(prev => prev.filter(i => i.id !== tempId));
       }
+    };
 
-      // 3. Create the item object
-      const newItem: ClothingItem = {
-        id: itemId,
-        userId: user.uid,
-        brand: data.brand,
-        name: data.name,
-        category: data.category,
-        imageUrl,
-        sizeChart: data.sizeChart,
-        isFavorite: false,
-        sizeChartPhotoUrl: sizeChartPhotoUrl || undefined,
-        userWearingSize: data.userWearingSize,
-        price: data.price,
-      };
+    runBackgroundAI(); // Execute in background
 
-      const { success, error: saveError } = await saveClothingItem(newItem);
-      if (!success || saveError) throw new Error(saveError || 'Failed to save item');
-
-      await loadData();
-    } catch (err: any) {
-      console.error(err);
-      throw err; // This allows the Modal to show the error
-    }
+    // 3. Wait 3 seconds then let the Modal close
+    return new Promise<void>((resolve) => {
+      setTimeout(() => {
+        setSuccessMessage("Adding to wardrobe...");
+        resolve();
+      }, 3000);
+    });
   };
   
   const handleDelete = async (itemId: string) => {
@@ -670,7 +679,7 @@ export default function ItemsPage() {
                           style={{ backgroundColor: colors.peach }}
                         >
                           {item.imageUrl ? (
-                            <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                            <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" crossOrigin="anonymous" />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center">
                               <svg 
@@ -781,6 +790,30 @@ export default function ItemsPage() {
             <>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
                 
+                {/* --- ✨ 3.1 RENDER GHOST ITEMS FIRST --- */}
+                {processingItems.map((item) => (
+                  <div
+                    key={item.id}
+                    className="bg-white rounded-xl shadow-sm border-2 border-dashed border-blue-200 overflow-hidden relative"
+                  >
+                    <div className="aspect-[3/4] relative bg-gray-50 flex items-center justify-center">
+                      <img src={item.imageUrl} alt="processing" className="w-full h-full object-cover blur-[2px] opacity-40" />
+                      <div className="absolute inset-0 flex flex-col items-center justify-center p-4">
+                        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-2"></div>
+                        <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest text-center">AI Extraction...</p>
+                        <div className="w-full h-1 bg-gray-200 rounded-full mt-2 overflow-hidden">
+                           <div className="h-full bg-blue-500 animate-pulse" style={{ width: '60%' }}></div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-4 bg-white">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase">{item.brand}</p>
+                      <h3 className="font-semibold text-gray-300 truncate">{item.name}</h3>
+                    </div>
+                  </div>
+                ))}
+
+                {/* --- ✨ 3.2 RENDER REAL ITEMS --- */}
                 {filteredItems.map((item) => (
                   <div
                     key={item.id}
@@ -799,9 +832,7 @@ export default function ItemsPage() {
                         className="w-8 h-8 rounded-full flex items-center justify-center transition-transform hover:scale-110"
                         style={{ backgroundColor: 'white' }}
                       >
-                        <span className="text-lg">
-                          {item.isFavorite ? '⭐' : '☆'}
-                        </span>
+                        <span className="text-lg">{item.isFavorite ? '⭐' : '☆'}</span>
                       </button>
                       <button
                         onClick={(e) => {
@@ -814,83 +845,34 @@ export default function ItemsPage() {
                       </button>
                     </div>
 
+                    {/* Image Container (NOW WHITE) */}
                     <div 
                       className="aspect-[3/4] flex items-center justify-center"
-                      style={{ backgroundColor: colors.peach }}
+                      style={{ backgroundColor: 'white' }} // 👈 Changed from colors.peach to white
                     >
                       {item.imageUrl ? (
-                        <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                        <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" crossOrigin="anonymous" />
                       ) : (
-                        <svg 
-                          className="w-20 h-20" 
-                          style={{ color: colors.navy, opacity: 0.3 }}
-                          fill="none" 
-                          stroke="currentColor" 
-                          viewBox="0 0 24 24"
-                        >
+                        <svg className="w-20 h-20" style={{ color: colors.navy, opacity: 0.1 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                         </svg>
                       )}
                     </div>
 
-                    <div className="p-4">
+                    <div className="p-4 bg-white"> {/* 👈 Changed to white */}
                       <span 
                         className="inline-block px-3 py-1 rounded-full text-xs font-bold mb-2"
                         style={{ backgroundColor: colors.pink, color: colors.navy }}
                       >
                         {item.brand}
                       </span>
-                      
-                      {/* ✨ Show price badge if it exists */}
-                        {/* @ts-ignore */}
-                        {item.price && (
-                          <span className="text-xs font-black text-green-600">
-                            ${Number(item.price).toFixed(2)}
-                          </span>
-                        )}
-                      </div>
-
-                      <h3 
-                        className="font-semibold mb-1 truncate" 
-                        style={{ color: colors.navy }}
-                      >
-                        {item.name}
-                      </h3>
-                      
+                      <h3 className="font-semibold mb-1" style={{ color: colors.navy }}>{item.name}</h3>
                       <p className="text-xs" style={{ color: colors.navy, opacity: 0.5 }}>
                         {item.category} • {item.sizeChart.length} sizes
                       </p>
                     </div>
-                ))}
-
-                {activeTab === 'items' && (
-                  <div
-                    onClick={() => setShowUpload(true)}
-                    className="bg-white rounded-xl shadow-sm border-2 border-dashed transition-all cursor-pointer overflow-hidden hover:shadow-md"
-                    style={{ borderColor: colors.pink }}
-                  >
-                    <div className="aspect-[3/4] flex flex-col items-center justify-center p-8">
-                      <div 
-                        className="w-16 h-16 mb-4 rounded-full flex items-center justify-center"
-                        style={{ backgroundColor: colors.peach }}
-                      >
-                        <svg 
-                          className="w-8 h-8" 
-                          style={{ color: colors.navy }}
-                          fill="none" 
-                          stroke="currentColor" 
-                          viewBox="0 0 24 24"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                      </div>
-                      <p className="text-sm font-medium text-center" style={{ color: colors.navy }}>
-                        Add Item
-                      </p>
-                    </div>
                   </div>
-                )}
-
+                ))}
               </div>
 
               {filteredItems.length === 0 && !loading && (

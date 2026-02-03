@@ -195,7 +195,7 @@ export default function CreateOutfitModal({ isOpen, onClose, availableItems, onS
                               style={{ backgroundColor: colors.peach }}
                             >
                               {item.imageUrl ? (
-                                <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                                <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" crossOrigin="anonymous" />
                               ) : (
                                 <svg 
                                   className="w-12 h-12" 

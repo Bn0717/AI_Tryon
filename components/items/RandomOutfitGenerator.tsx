@@ -195,7 +195,7 @@ export default function RandomOutfitModal({ isOpen, onClose, items, availableCat
                     style={{ borderColor: colors.peach }}
                   >
                     {item.imageUrl ? (
-                      <img src={item.imageUrl} alt={item.name} className="w-full aspect-square object-cover" />
+                      <img src={item.imageUrl} alt={item.name} className="w-full aspect-square object-cover" crossOrigin="anonymous" />
                     ) : (
                       <div className="w-full aspect-square flex items-center justify-center" style={{ backgroundColor: colors.peach }}>
                         <svg className="w-12 h-12" style={{ color: colors.navy, opacity: 0.3 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
